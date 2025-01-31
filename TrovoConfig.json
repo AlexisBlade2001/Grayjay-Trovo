@@ -1,0 +1,70 @@
+{
+  "name": "Trovo (Experimental)",
+  "description": "A gaming-centric live streaming platform, part of Tencent's portfolio.",
+  "author": "AlexisBlade2001",
+  "authorUrl": "https://github.com/AlexisBlade2001",
+
+  "platformUrl": "https://trovo.live",
+  "sourceUrl": "./TrovoConfig.json",
+  "repositoryUrl": "https://github.com/AlexisBlade2001/Grayjay-Trovo",
+  "scriptUrl": "./TrovoScript.js",
+  "version": 0,
+
+  "iconUrl": "./TrovoIcon.png",
+
+  "id": "b1aefafc-6eca-4e0b-aef1-d746e79d9fe6",
+
+  "scriptSignature": "",
+  "scriptPublicKey": "",
+
+  "packages": ["Http", "DOMParser"],
+
+  "allowEval": false,
+  "allowUrls": [
+    "astatic.trovocdn.net",
+
+    "trovo.live",
+    "cdn.trovo.live",
+
+    "intlsdk.trovo.live",
+
+    "pubsub.trovo.live",
+
+    "aegis.trovo.live",
+
+    "open-api.trovo.live",
+    "api.trovo.live",
+    "api-web.trovo.live",
+    "api-web-backup.trovo.live",
+    "fr-api-web.trovo.live",
+    "fr-api-web-backup.trovo.live",
+    "sv-api-web.trovo.live",
+    "sv-api-web-backup.trovo.live",
+
+    "cfgapi.trovo.live",
+
+    "chat.trovo.live",
+    "chat-backup.trovo.live",
+    "fr-chat.trovo.live",
+    "fr-chat-backup.trovo.live",
+    "sv-chat.trovo.live",
+    "sv-chat-backup.trovo.live",
+
+    "custom-file.trovo.live",
+    "img.trovo.live",
+    "vod.trovo.live",
+    "player.trovo.live",
+    "headicon.trovo.live",
+    "livecover.trovo.live",
+    "liveplay.trovo.live",
+
+    "static.trovo.live",
+
+    "tdm.trovo.live:8013"
+  ],
+
+  "authentication": {
+    "loginUrl": "https://cdn.trovo.live/page/login-page.html",
+    "cookiesToFind": ["channel", "openid", "tokenInfos", "uid"]
+  }
+}
