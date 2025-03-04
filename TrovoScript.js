@@ -8,6 +8,8 @@ const GQL_OPEN = BASE_GQL.replace("api", "open-api");
 
 const URL_BASE = 'https://trovo.live';
 
+const URL_CHANNEL_PREFIX = `${URL_BASE}/s`;
+const URL_SEARCH = `${URL_BASE}/search?q=`;
 const URL_LIVE_CHAT = 'https://player.trovo.live/chat';
 
 const PLATFORM = "Trovo";
@@ -99,8 +101,55 @@ source.searchChannels = function (query, continuationToken) {
      * @returns: ChannelPager
      */
 
-    const channels = []; // The results (PlatformChannel)
-    const hasMore = false; // Are there more pages?
+    const gql = {
+        operationName: "search_SearchService_SearchStreamers",
+        variables: {
+            params: {
+                query: query
+                // pageSize: 6, // 6 on website, 8 if parameter deleted
+                // currPage: 2, // doesn't seem to work
+                // offset: 6, // the same thing
+                // num: 6 // ???
+            }
+        }
+    };
+
+    let results = callGQL(gql);
+
+    const getSocialLinks = (socialData) => {
+        const links = {
+            instagram: socialData?.instagram || "",
+            twitter: socialData?.twitter || "",
+            facebook: socialData?.facebook || "",
+            discord: socialData?.discord || "",
+            youtube: socialData?.youtube || "",
+            tiktok: socialData?.tiktok || "",
+            snapchat: socialData?.snapchat || "",
+            telegram: socialData?.telegram || ""
+        };
+
+        return Object.fromEntries(
+            Object.entries(links).filter(([_, value]) => value)
+        );
+    };
+
+    // The results (PlatformChannel)
+    const channels = results.data?.search_SearchService_SearchStreamers?.streamerInfos.map((channel) => {
+        return new PlatformChannel({
+            id: new PlatformID(PLATFORM, String(channel.userInfo?.uid), config.id),
+            name: channel.userInfo?.nickName,
+            thumbnail: channel.userInfo?.faceUrl,
+            subscribers: channel.followers,
+            description: channel.userInfo?.info,
+            url: `${URL_CHANNEL_PREFIX}/${channel.userInfo?.userName}`,
+            urlAlternatives: [
+                `${URL_BASE}/${channel.userInfo?.userName}`,
+                `${URL_CHANNEL_PREFIX}/${channel.userInfo?.userName}`
+            ],
+            links: getSocialLinks(channel.userInfo?.socialLinks || {})
+        });
+    });
+    const hasMore = /** results.data?.search_SearchService_SearchStreamers?.hasMore ?? */ false; // Are there more pages?
     const context = { query: query, continuationToken: continuationToken }; // Relevant data for the next page
 
     return new TrovoChannelPager(channels, hasMore, context);

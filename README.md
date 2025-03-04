@@ -9,7 +9,7 @@ Also... sorry for having A LOT of Allowed URLs, I don't know what urls are being
  - [ ] Search
    - [ ] Standard Search
      - [ ] Filters
-   - [ ] Channel Search
+   - [x] Channel Search
  - [ ] Channel
    - [ ] Profile Data
      - [ ] Name
