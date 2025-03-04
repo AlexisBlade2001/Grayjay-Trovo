@@ -179,7 +179,9 @@ source.getSubComments = function (comment) {
 //Live Chat
 source.getLiveChatWindow = function (url) {
     const user = url.split('/').pop()
-    return {};
+    return {
+        url: `${URL_LIVE_CHAT}/${user}`,
+    };
 }
 
 class TrovoCommentPager extends CommentPager {
