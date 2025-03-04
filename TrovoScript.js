@@ -1,4 +1,13 @@
+const BASE_GQL = "https://api.trovo.live/graphql";
+const BASE_BACKUP_GQL = "https://api-backup.trovo.live/graphql";
+
+const GQL = BASE_GQL;
+const GQL_WEB = BASE_GQL.replace("api", "api-web");
+const GQL_WEB_BACKUP = BASE_BACKUP_GQL.replace("api", "api-web");
+const GQL_OPEN = BASE_GQL.replace("api", "open-api");
+
 const URL_BASE = 'https://trovo.live';
+
 const URL_LIVE_CHAT = 'https://player.trovo.live/chat';
 
 const PLATFORM = "Trovo";
@@ -93,6 +102,7 @@ source.searchChannels = function (query, continuationToken) {
     const channels = []; // The results (PlatformChannel)
     const hasMore = false; // Are there more pages?
     const context = { query: query, continuationToken: continuationToken }; // Relevant data for the next page
+
     return new TrovoChannelPager(channels, hasMore, context);
 };
 
@@ -244,5 +254,48 @@ class TrovoChannelVideoPager extends VideoPager {
     }
 }
 
+
+
+//* Internals
+function generateRandomId() {
+    return [...Array(16)]
+        .map(() => Math.floor(Math.random() * 16).toString(16))
+        .join('');
+}
+
+/**
+ * Posts to GQL_URL with the gql query. Includes relevant headers.
+ * @param {string} url the url where it will be sended
+ * @param {Object} gql the gql query object to be stringified and sent
+ * @param {boolean} use_authenticated if true, will use the authenticated headers
+ * @param {boolean} parse if true, will parse the response as json and check for errors
+ * @returns {string | Object} the response body as a string or the parsed json object
+ * @throws {ScriptException}
+
+ */
+function callGQL(gql, url = GQL, use_authenticated = false, parse = true) {
+    const resp = http.POST(
+        `${url}?qid=${generateRandomId()}`,
+        JSON.stringify(gql),
+        {
+            Accept: '*/*',
+            "Content-Type": "application/json",
+            DNT: '1',
+            Host: 'api.trovo.live',
+            Origin: 'https://trovo.live',
+            Referer: 'https://trovo.live/',
+        },
+        use_authenticated
+    );
+
+    if (resp.code !== 200) {
+        throw new ScriptException(`GQL returned ${resp.code}: ${resp.body}`);
+    }
+
+    if (!parse) return resp.body;
+
+    const json = JSON.parse(resp.body);
+    return json;
+}
 
 log("LOADED");
