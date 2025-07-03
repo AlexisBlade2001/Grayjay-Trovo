@@ -75,9 +75,58 @@ source.search = function (query, type, order, filters, continuationToken) {
      * @param continuationToken: any?
      * @returns: VideoPager
      */
-    const videos = []; // The results (PlatformVideo)
-    const hasMore = false; // Are there more pages?
-    const context = { query: query, type: type, order: order, filters: filters, continuationToken: continuationToken }; // Relevant data for the next page
+
+    const pageSize = 10;
+    let token = continuationToken ? { ...continuationToken } : {
+        offset: 0,
+        currPage: 1,
+        sessionID: null
+    };
+
+    const params = {
+        query: query,
+        num: pageSize,
+        pageSize: pageSize,
+        currPage: token.currPage,
+        offset: token.offset,
+        sessionID: token.sessionID || ""
+    };
+
+    const op = [{
+        operationName: "search_SearchService_SearchLives",
+        variables: { params }
+    }];
+
+    const results = callGQL(op);
+
+    token = {
+        offset: token.offset + pageSize,
+        currPage: token.currPage + 1,
+        sessionID: results.search_SearchService_SearchLives?.sessionID || token.sessionID
+    };
+
+    const lives = results.search_SearchService_SearchLives?.lives || [];
+
+    const videos = lives.map(live => {
+        return new PlatformVideo({
+            id: new PlatformID(PLATFORM, live.programInfo.id, plugin.config.id),
+            name: live.programInfo.title,
+            thumbnails: new Thumbnails([new Thumbnail(live.programInfo.coverUrl)]),
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, toString(live.userInfo?.uid), plugin.config.id),
+                live.userInfo.nickName,
+                `${URL_CHANNEL}/${live.userInfo.userName}`,
+                live.userInfo.faceUrl,
+                0
+            ),
+            uploadDate: parseInt(live.programInfo.startTm),
+            viewCount: parseFloat(live.channelInfo.viewers),
+            url: `${URL_CHANNEL}/${live.userInfo.userName}`,
+            isLive: true
+        });
+    });
+    const hasMore = results.search_SearchService_SearchLives?.hasMore || false;
+    const context = { query: query, type: type, order: order, filters: filters, continuationToken: token };
     return new TrovoSearchVideoPager(videos, hasMore, context);
 }
 
