@@ -114,57 +114,61 @@ source.searchChannels = function (query, continuationToken) {
      * @returns: ChannelPager
      */
 
-    const gql = {
+    const pageSize = 6;
+    let token = continuationToken ? { ...continuationToken } : {
+        currPage: 1,
+        offset: 0,
+        sessionID: null
+    };
+
+    const params = {
+        query: query,
+        pageSize: pageSize,
+        currPage: token.currPage,
+        offset: token.offset,
+        num: pageSize
+    };
+
+    if (token.sessionID) {
+        params.sessionID = token.sessionID;
+    }
+
+    const op = [{
         operationName: "search_SearchService_SearchStreamers",
-        variables: {
-            params: {
-                query: query
-                // pageSize: 6, // 6 on website, 8 if parameter deleted
-                // currPage: 2, // doesn't seem to work
-                // offset: 6, // the same thing
-                // num: 6 // ???
-            }
-        }
+        variables: { params },
+        extensions: { singleReq: true }
+    }];
+
+    const results = callGQL(op);
+
+    token = {
+        currPage: token.currPage + 1,
+        offset: token.offset + pageSize,
+        sessionID: results.search_SearchService_SearchStreamers?.sessionID || token.sessionID
     };
 
-    let results = callGQL(gql);
+    const streamerInfos = results.search_SearchService_SearchStreamers?.streamerInfos || [];
 
-    const getSocialLinks = (socialData) => {
-        const links = {
-            instagram: socialData?.instagram || "",
-            twitter: socialData?.twitter || "",
-            facebook: socialData?.facebook || "",
-            discord: socialData?.discord || "",
-            youtube: socialData?.youtube || "",
-            tiktok: socialData?.tiktok || "",
-            snapchat: socialData?.snapchat || "",
-            telegram: socialData?.telegram || ""
-        };
-
-        return Object.fromEntries(
-            Object.entries(links).filter(([_, value]) => value)
-        );
-    };
-
-    // The results (PlatformChannel)
-    const channels = results.data?.search_SearchService_SearchStreamers?.streamerInfos.map((channel) => {
+    const channels = streamerInfos.map(channel => {
+        const socialLinks = { ...(channel.userInfo.socialLinks || {}) };
+        delete socialLinks.socialLinks;
         return new PlatformChannel({
-            id: new PlatformID(PLATFORM, String(channel.userInfo?.uid), config.id),
+            id: new PlatformID(PLATFORM, toString(channel.userInfo?.uid), plugin.config.id),
             name: channel.userInfo?.nickName,
-            thumbnail: channel.userInfo?.faceUrl,
-            subscribers: channel.followers,
-            description: channel.userInfo?.info,
-            url: `${URL_CHANNEL_PREFIX}/${channel.userInfo?.userName}`,
+            thumbnail: channel.userInfo?.faceUrl || "",
+            // banner: "",
+            subscribers: channel.followers ?? 0,
+            description: channel.userInfo?.info || "",
+            url: `${URL_CHANNEL}/${channel.userInfo?.userName}`,
             urlAlternatives: [
                 `${URL_BASE}/${channel.userInfo?.userName}`,
                 `${URL_CHANNEL_PREFIX}/${channel.userInfo?.userName}`
             ],
-            links: getSocialLinks(channel.userInfo?.socialLinks || {})
+            links: socialLinks
         });
-    });
-    const hasMore = /** results.data?.search_SearchService_SearchStreamers?.hasMore ?? */ false; // Are there more pages?
-    const context = { query: query, continuationToken: continuationToken }; // Relevant data for the next page
-
+    }); // The results (PlatformChannel)
+    const hasMore = results.search_SearchService_SearchStreamers?.hasMore || false; // Are there more pages?
+    const context = { query: query, continuationToken: token }; // Relevant data for the next page
     return new TrovoChannelPager(channels, hasMore, context);
 };
 
