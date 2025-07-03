@@ -40,7 +40,20 @@ source.searchSuggestions = function (query) {
      * @returns: string[]
      */
 
-    const suggestions = []; //The suggestions for a specific search query
+    let op = [{
+        operationName: "search_SearchService_SearchSuggest",
+        variables: {
+            params: {
+                query: query,
+                pageSize: 8
+            }
+        },
+    }]
+    const results = callGQL(op);
+
+    const words = results.search_SearchService_SearchSuggest?.words || [];
+
+    const suggestions = words.map(w => w.word); //The suggestions for a specific search query
     return suggestions;
 }
 
