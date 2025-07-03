@@ -29,14 +29,16 @@ Also... sorry for having A LOT of Allowed URLs, I don't know what urls are being
        - [ ] Clips
  - [ ] Content
    - [ ] Live Streams
-     - [ ] Title
-     - [ ] Thumbnail
-     - [ ] Author
-     - [ ] Share URL
-     - [ ] Duration
-     - [ ] View Count
+     - [x] Title
+     - [x] Thumbnail
+     - [x] Author
+     - [x] Upload Date
+     - [x] URL
+     - [x] View Count
+     - [x] Description
      - [ ] Video Sources
-     - [ ] Live Chat / Events
+       - [ ] Quality Options
+     - [x] Live Chat / Events
        - [ ] Native Implementation
        - [x] WebView Implementation
    - [ ] Replays / VODs

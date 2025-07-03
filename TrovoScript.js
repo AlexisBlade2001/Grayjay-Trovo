@@ -203,10 +203,8 @@ source.getContentDetails = function (url) {
      * @returns: PlatformVideoDetails
      */
 
-	return new PlatformVideoDetails({
-		//... see source.js for more details
-	});
-};
+        return getLiveDetails(url);
+}
 
 //Comments
 source.getComments = function (url, continuationToken) {
@@ -304,6 +302,84 @@ class TrovoChannelVideoPager extends VideoPager {
 }
 
 
+function getLiveDetails(url) {
+    const match = url.match(REGEX_USER);
+    if (!match) throw new ScriptException("Invalid URL");
+    const user = match[1];
+
+    let op = [{
+        operationName: "live_LiveReaderService_GetLiveInfo",
+        variables: {
+            params: { userName: user }
+        }
+    }]
+
+    const results = callGQL(op);
+
+    const liveInfo = results.live_LiveReaderService_GetLiveInfo;
+    if (!liveInfo || !liveInfo.isLive) {
+        throw new ScriptException("User is not live");
+    }
+
+    const live = liveInfo.programInfo;
+    const streamer = liveInfo.streamerInfo;
+    const channel = liveInfo.channelInfo;
+
+    const hlsSources = [];
+    const videoUrlSources = [];
+    const addedTimeShiftBases = new Set();
+
+    live.streamInfo.forEach(source => {
+        if (source.playUrl) {
+            videoUrlSources.push(new VideoUrlSource({
+                container: getContainerType(source.playUrl),
+                codec: getCodec(source.encodeType),
+                name: source.desc,
+                bitrate: source.bitrate,
+                url: source.playUrl
+            }));
+        }
+
+        if (source.playTimeShiftUrl) {
+            const baseUrl = source.playTimeShiftUrl.split("?")[0];
+            if (!addedTimeShiftBases.has(baseUrl)) {
+                hlsSources.push(new HLSSource({
+                    name: `Timeshift | ${source.playTimeShiftDesc}`,
+                    url: source.playTimeShiftUrl,
+                    container: getContainerType(source.playTimeShiftUrl)
+                }));
+                addedTimeShiftBases.add(baseUrl);
+            }
+        }
+    });
+
+    videoUrlSources.sort((a, b) => b.bitrate - a.bitrate);
+
+    const videoSources = [...hlsSources, ...videoUrlSources];
+
+    return new PlatformVideoDetails({
+        id: new PlatformID(PLATFORM, live.id, plugin.config.id),
+        name: live.title,
+        thumbnails: new Thumbnails([new Thumbnail(live.coverUrl)]),
+        author: new PlatformAuthorLink(
+            new PlatformID(PLATFORM, toString(streamer.uid), plugin.config.id),
+            streamer.nickName,
+            `${URL_CHANNEL}/${streamer.userName}`,
+            streamer.faceUrl,
+            // streamerInfo.followers.totalCount
+        ),
+        uploadDate: live.startTm,
+        url: `${URL_CHANNEL}/${streamer.userName}`,
+
+        shareUrl: `${URL_CHANNEL}/${streamer.userName}/${liveInfo.spaceInfo.roomID}`, // ?adtag=user.Username.clip
+
+        viewCount: parseFloat(channel.viewers),
+
+        isLive: true,
+        description: `${live.description}`,
+        video: new VideoSourceDescriptor(videoSources),
+    })
+}
 
 //* Internals
 function generateRandomId() {
@@ -345,6 +421,35 @@ function callGQL(gql, url = GQL, use_authenticated = false, parse = true) {
 
     const json = JSON.parse(resp.body);
     return json;
+}
+
+function getCodec(codec) {
+    const codecMap = {
+        VOD_ENCODE_TYPE_X264: "H.264 (x264)",
+        ENCODE_TYPE_X264: "H.264 (x264)",
+        ENCODE_TYPE_X265: "H.265 (x265)",
+        ENCODE_TYPE_AV1: "AV1",
+        ENCODE_TYPE_VP9: "VP9",
+        ENCODE_TYPE_VP8: "VP8",
+        ENCODE_TYPE_AVS3: "AVS3",
+        ENCODE_TYPE_VVC: "VVC"
+    };
+    return codecMap[codec] || "Unknown";
+}
+
+function getContainerType(url) {
+    if (!url) return "application/octet-stream";
+    const patterns = [
+        { regex: /\.ts(\?|$)/i, type: "video/MP2T" },
+        { regex: /\.flv(\?|$)/i, type: "video/x-flv" },
+        { regex: /\.m3u8(\?|$)/i, type: "application/x-mpegURL" },
+        { regex: /webrtc/i, type: "application/x-webrtc" },
+        { regex: /quic/i, type: "application/x-quic" }
+    ];
+    for (const { regex, type } of patterns) {
+        if (regex.test(url)) return type;
+    }
+    return "application/octet-stream";
 }
 
 log("LOADED");
