@@ -397,12 +397,12 @@ function getLiveDetails(url) {
 
     live.streamInfo.forEach(source => {
         if (source.playUrl) {
-            videoUrlSources.push(new VideoUrlSource({
+            videoUrlSources.push(new HLSSource({
                 container: getContainerType(source.playUrl),
                 codec: getCodec(source.encodeType),
                 name: source.desc,
                 bitrate: source.bitrate,
-                url: source.playUrl
+                url: source.playUrl.replace(".flv?", ".m3u8?"),
             }));
         }
 
