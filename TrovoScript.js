@@ -10,10 +10,11 @@ const URL_BASE = 'https://trovo.live';
 
 const URL_CHANNEL_PREFIX = `${URL_BASE}/s`;
 const URL_SEARCH = `${URL_BASE}/search?q=`;
-const URL_LIVE_CHAT = 'https://player.trovo.live/chat';
+const URL_LIVE_CHAT = `${URL_BASE}/chat`
 
 const PLATFORM = "Trovo";
 
+const REGEX_USER = new RegExp("^https?:\\/\\/(?:www\\.)?trovo\\.live\\/s\\/([^/?&]+)(?:[\\/#?]|$)", "i");
 var config = {};
 
 //Source Methods
@@ -301,7 +302,9 @@ source.getSubComments = function (comment) {
 
 //Live Chat
 source.getLiveChatWindow = function (url) {
-    const user = url.split('/').pop()
+    const match = url.match(REGEX_USER);
+    if (!match) throw new ScriptException("Invalid URL");
+    const user = match[1];
     return {
         url: `${URL_LIVE_CHAT}/${user}`,
     };
