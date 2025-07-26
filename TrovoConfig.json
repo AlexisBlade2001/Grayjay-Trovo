@@ -1,7 +1,7 @@
 {
 	"$schema": "https://github.com/MithrilGoat/GrayJay-Plugin-Schema/releases/latest/download/Schema.json",
     "name": "Trovo (Beta)",
-    "description": "Trovo is an interactive live streaming platform, you can check out the hottest games live, share your own gaming experiences, and join an amazing community created especially for gamers, creators and do-ers.",
+    "description": "A gaming-centric live streaming platform, part of Tencent's portfolio.",
     "author": "AlexisBlade2001",
     "authorUrl": "https://github.com/AlexisBlade2001",
     
