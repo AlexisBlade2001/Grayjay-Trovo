@@ -202,6 +202,11 @@ source.searchChannels = function (query, continuationToken) {
     const channels = streamerInfos.map(channel => {
         const socialLinks = { ...(channel.userInfo.socialLinks || {}) };
         delete socialLinks.socialLinks;
+        const cleanLinks = Object.fromEntries(
+            Object.entries(socialLinks).filter(([_, value]) =>
+                value && typeof value === 'string' && value.trim() !== ''
+            )
+        );
         return new PlatformChannel({
             id: new PlatformID(PLATFORM, channel.userInfo?.uid.toString(), plugin.config.id),
             name: channel.userInfo?.nickName,
