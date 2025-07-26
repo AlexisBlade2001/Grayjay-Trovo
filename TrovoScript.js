@@ -8,13 +8,18 @@ const GQL_OPEN = BASE_GQL.replace("api", "open-api");
 
 const URL_BASE = 'https://trovo.live';
 
-const URL_CHANNEL_PREFIX = `${URL_BASE}/s`;
+const URL_CHANNEL = `${URL_BASE}/s`;
 const URL_SEARCH = `${URL_BASE}/search?q=`;
 const URL_LIVE_CHAT = `${URL_BASE}/chat`
 
+const URL_FOLLOWING = `${URL_BASE}/following`;
+const URL_SUBSCRIPTIONS = `${URL_BASE}/subscriptions`;
 const PLATFORM = "Trovo";
 
-const REGEX_USER = new RegExp("^https?:\\/\\/(?:www\\.)?trovo\\.live\\/s\\/([^/?&]+)(?:[\\/#?]|$)", "i");
+const REGEX_USER = /trovo\.live\/(?:s\/)?([^\/?]+)/i;
+const REGEX_VOD = /(?:\?|&)vid=([a-z0-9_-]+)/i;
+const REGEX_CHANNEL = /trovo\.live\/(?:s\/)?([^\/?]+)(?:\/(\d+))?(?:\/)?(?:\?((?!vid=).)*)?$/i;
+
 var config = {};
 
 //Source Methods
@@ -22,7 +27,48 @@ source.enable = function (conf) {
     /**
      * @param conf: SourceV8PluginConfig (the TrovoConfig.js)
      */
+
+    config = conf ?? {};
 }
+
+source.disable = function () {
+    /**
+     * Called when the source is disabled.
+     * You can use this to clean up any resources or connections.
+     */
+    config = {};
+    log("Source disabled");
+}
+
+/*
+source.getUserSubscriptions = function () {
+    if (!bridge.isLoggedIn()) {
+        bridge.log("Failed to retrieve subscriptions page because not logged in.");
+        throw new LoginRequiredException("Not logged in");
+    }
+
+    const op = [
+        {
+            operationName: "profile_FollowPage_GetMoreFollowedUsers",
+            variables: {
+                params: {
+                    uid: bridge.getCurrentUserId(),
+                    sort: "Undefined",
+                    start: 0,
+                    count: 50
+                }
+            }
+        }
+    ];
+    
+    const results = callGQL(op);
+    
+    const list = results.profile_FollowPage_GetMoreFollowedUsers?.list;
+    const users = Array.isArray(list?.users) ? list.users : [];
+    
+    return users.map(u => `${URL_CHANNEL}/${u.userName}`)
+}
+*/
 
 source.getHome = function (continuationToken) {
     /**
@@ -153,7 +199,7 @@ source.searchChannelContents = function (url, query, type, order, filters, conti
 
     const videos = []; // The results (PlatformVideo)
     const hasMore = false; // Are there more pages?
-    const context = { channelUrl: channelUrl, query: query, type: type, order: order, filters: filters, continuationToken: continuationToken }; // Relevant data for the next page
+    const context = { url: url, query: query, type: type, order: order, filters: filters, continuationToken: continuationToken }; // Relevant data for the next page
     return new TrovoSearchChannelVideoPager(videos, hasMore, context);
 }
 
@@ -211,19 +257,19 @@ source.searchChannels = function (query, continuationToken) {
             id: new PlatformID(PLATFORM, channel.userInfo?.uid.toString(), plugin.config.id),
             name: channel.userInfo?.nickName,
             thumbnail: channel.userInfo?.faceUrl || "",
-            // banner: "",
             subscribers: channel.followers ?? 0,
             description: channel.userInfo?.info || "",
             url: `${URL_CHANNEL}/${channel.userInfo?.userName}`,
             urlAlternatives: [
                 `${URL_BASE}/${channel.userInfo?.userName}`,
-                `${URL_CHANNEL_PREFIX}/${channel.userInfo?.userName}`
+                `${URL_CHANNEL}/${channel.userInfo?.userName}`
             ],
-            links: socialLinks
+            links: cleanLinks
         });
-    }); // The results (PlatformChannel)
-    const hasMore = results.search_SearchService_SearchStreamers?.hasMore || false; // Are there more pages?
-    const context = { query: query, continuationToken: token }; // Relevant data for the next page
+    });
+
+    const hasMore = results.search_SearchService_SearchStreamers?.hasMore || false;
+    const context = { query: query, continuationToken: token };
     return new TrovoChannelPager(channels, hasMore, context);
 };
 
@@ -234,12 +280,51 @@ source.isChannelUrl = function (url) {
      * @returns: boolean
      */
 
-    return REGEX_CHANNEL_URL.test(url);
+    return REGEX_CHANNEL.test(url) && !REGEX_VOD.test(url);
 }
 
 source.getChannel = function (url) {
+    /**
+     * @param url: string
+     * @returns: PlatformChannel
+     */
+
+    const match = url.match(REGEX_USER);
+    if (!match) throw new ScriptException("Invalid URL");
+    const username = match[1];
+
+    const op = [{
+        operationName: "live_LiveReaderService_GetLiveInfo",
+        variables: {
+            params: { userName: username }
+        }
+    }];
+
+    const results = callGQL(op);
+    const channel = results.live_LiveReaderService_GetLiveInfo?.streamerInfo;
+
+    if (!channel) throw new ScriptException("Channel not found");
+
+    const socialLinks = { ...(channel.socialLinks || {}) };
+    delete socialLinks.socialLinks;
+    const cleanLinks = Object.fromEntries(
+        Object.entries(socialLinks).filter(([_, value]) =>
+            value && typeof value === 'string' && value.trim() !== ''
+        )
+    );
+
     return new PlatformChannel({
-        //... see source.js for more details
+        id: new PlatformID(PLATFORM, channel.uid.toString(), plugin.config.id),
+        name: channel.nickName,
+        thumbnail: channel.faceUrl,
+        subscribers: channel.followers || 0,
+        description: channel.info || "",
+        url: `${URL_CHANNEL}/${channel.userName}`,
+        urlAlternatives: [
+            `${URL_BASE}/${channel.userName}`,
+            `${URL_CHANNEL}/${channel.userName}`
+        ],
+        links: cleanLinks
     });
 }
 
@@ -253,9 +338,57 @@ source.getChannelContents = function (url, type, order, filters, continuationTok
      * @returns: VideoPager
      */
 
-    const videos = []; // The results (PlatformVideo)
-    const hasMore = false; // Are there more pages?
-    const context = { url: url, query: query, type: type, order: order, filters: filters, continuationToken: continuationToken }; // Relevant data for the next page
+    const match = url.match(REGEX_USER);
+    if (!match) throw new ScriptException("Invalid URL");
+    const username = match[1];
+
+    let token = continuationToken || {
+        displayname: username,
+        vodPage: 1,
+        clipPage: 1,
+        uploadPage: 1,
+        vodHasMore: true,
+        clipHasMore: true,
+        uploadHasMore: true,
+        liveFetched: false
+    };
+
+    let videos = []; // The results (PlatformVideo)
+
+    if (!token.liveFetched) {
+        const liveContent = getLiveChannelContent(username);
+        if (liveContent) videos.push(liveContent);
+        token.liveFetched = true;
+    }
+
+    if (token.vodHasMore) {
+        const vodResult = getVodChannelContent(username, token.vodPage);
+        videos = [...videos, ...vodResult.content];
+        token.vodPage = vodResult.nextPage;
+        token.vodHasMore = vodResult.hasMore;
+    }
+
+    // Check if clips should be included, currently is disabled by the plugin settings, and cannot be changed by the user
+    if (config.shouldIncludeChannelClips) {
+        if (token.clipHasMore) {
+            const clipResult = getClipChannelContent(username, token.clipPage);
+            videos = [...videos, ...clipResult.content];
+            token.clipPage = clipResult.nextPage;
+            token.clipHasMore = clipResult.hasMore;
+        }
+    } else {
+        token.clipHasMore = false;
+    }
+
+    if (token.uploadHasMore) {
+        const uploadResult = getUploadChannelContent(username, token.uploadPage);
+        videos = [...videos, ...uploadResult.content];
+        token.uploadPage = uploadResult.nextPage;
+        token.uploadHasMore = uploadResult.hasMore;
+    }
+
+    let hasMore = token.vodHasMore || token.clipHasMore || token.uploadHasMore || false; // Are there more pages?
+    const context = { url: url, type: type, order: order, filters: filters, continuationToken: token }; // Relevant data for the next page
     return new TrovoChannelVideoPager(videos, hasMore, context);
 }
 
@@ -266,7 +399,7 @@ source.isContentDetailsUrl = function (url) {
      * @returns: boolean
      */
 
-    return REGEX_DETAILS_URL.test(url);
+    return REGEX_VOD.test(url);
 }
 
 source.getContentDetails = function (url) {
@@ -275,7 +408,11 @@ source.getContentDetails = function (url) {
      * @returns: PlatformVideoDetails
      */
 
+    if (REGEX_VOD.test(url)) {
+        return getVideoDetails(url);
+    } else {
         return getLiveDetails(url);
+    }
 }
 
 //Comments
@@ -375,6 +512,182 @@ class TrovoChannelVideoPager extends VideoPager {
     }
 }
 
+function getLiveChannelContent(username) {
+    const op = [{
+        operationName: "live_LiveReaderService_GetLiveInfo",
+        variables: {
+            params: { userName: username }
+        }
+    }];
+
+    const results = callGQL(op);
+    const liveInfo = results.live_LiveReaderService_GetLiveInfo;
+
+    if (!liveInfo || liveInfo.isLive === 0) return null;
+
+    return new PlatformVideo({
+        id: new PlatformID(PLATFORM, liveInfo.programInfo.id, plugin.config.id),
+        name: liveInfo.programInfo.title,
+        thumbnails: new Thumbnails([new Thumbnail(liveInfo.programInfo.coverUrl)]),
+        author: new PlatformAuthorLink(
+            new PlatformID(PLATFORM, liveInfo.streamerInfo.uid.toString(), plugin.config.id),
+            liveInfo.streamerInfo.nickName,
+            `${URL_CHANNEL}/${liveInfo.streamerInfo.userName}`,
+            liveInfo.streamerInfo.faceUrl,
+            liveInfo.channelInfo.followers || 0
+        ),
+        uploadDate: Math.floor(Date.now() / 1000),
+        viewCount: parseFloat(liveInfo.channelInfo.viewers),
+        url: `${URL_CHANNEL}/${liveInfo.streamerInfo.userName}`,
+        isLive: true
+    });
+}
+
+function getVodChannelContent(username, page) {
+    const op = [{
+        operationName: "vod_VodReaderService_GetChannelLtvVideoInfos",
+        variables: {
+            params: {
+                pageSize: 15,
+                currPage: page,
+                terminalSpaceID: {
+                    spaceName: username
+                }
+            }
+        }
+    }];
+
+    const results = callGQL(op);
+    const response = results.vod_VodReaderService_GetChannelLtvVideoInfos || {};
+    const vodInfos = response.vodInfos || [];
+    const streamerInfo = response.streamerInfo || {};
+
+    const content = vodInfos.map(vod => {
+        return new PlatformVideo({
+            id: new PlatformID(PLATFORM, vod.vid, plugin.config.id),
+            name: vod.title || "Untitled VOD",
+            thumbnails: new Thumbnails([
+                new Thumbnail(vod.coverUrl || streamerInfo.faceUrl)
+            ]),
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, streamerInfo.uid?.toString() || "", plugin.config.id),
+                streamerInfo.nickName || username,
+                `${URL_CHANNEL}/${streamerInfo.userName || username}`,
+                streamerInfo.faceUrl,
+                streamerInfo.followers || 0
+            ),
+            uploadDate: parseInt(vod.publishTs || "0"),
+            duration: parseInt(vod.duration || "0"),
+            viewCount: parseFloat(vod.watchNum || "0"),
+            url: `${URL_CHANNEL}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
+            isLive: false
+        });
+    });
+
+    return {
+        content: content,
+        nextPage: page + 1,
+        hasMore: response.hasMore || false
+    };
+}
+
+function getClipChannelContent(username, page, filter = null) {
+    const op = [{
+        operationName: "vod_VodReaderService_GetChannelClipVideoInfos",
+        variables: {
+            params: {
+                terminalSpaceID: {
+                    spaceName: username
+                },
+                pageSize: 15,
+                currPage: page,
+                albumType: filter || "VOD_CLIP_ALBUM_TYPE_RECOMMENDED"
+            }
+        }
+    }];
+
+    const results = callGQL(op);
+    const response = results.vod_VodReaderService_GetChannelClipVideoInfos || {};
+    const vodInfos = response.vodInfos || [];
+    const streamerInfo = response.streamerInfo || {};
+
+    const content = vodInfos.map(vod => {
+        return new PlatformVideo({
+            id: new PlatformID(PLATFORM, vod.vid, plugin.config.id),
+            name: vod.title || "Untitled Clip",
+            thumbnails: new Thumbnails([
+                new Thumbnail(vod.coverUrl || streamerInfo.faceUrl)
+            ]),
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, streamerInfo.uid?.toString() || "", plugin.config.id),
+                streamerInfo.nickName || username,
+                `${URL_CHANNEL}/${streamerInfo.userName || username}`,
+                streamerInfo.faceUrl,
+                streamerInfo.followers || 0
+            ),
+            uploadDate: parseInt(vod.publishTs || "0"),
+            duration: parseInt(vod.duration || "0"),
+            viewCount: parseFloat(vod.watchNum || "0"),
+            url: `${URL_CHANNEL}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
+            isLive: false
+        });
+    });
+
+    return {
+        content: content,
+        nextPage: page + 1,
+        hasMore: response.hasMore || false
+    };
+}
+
+function getUploadChannelContent(username, page) {
+    const op = [{
+        operationName: "vod_VodReaderService_GetChannelUploadVideoInfos",
+        variables: {
+            params: {
+                terminalSpaceID: {
+                    spaceName: username
+                },
+                pageSize: 15,
+                currPage: page,
+                contentType: "UPLOAD"
+            }
+        }
+    }];
+
+    const results = callGQL(op);
+    const response = results.vod_VodReaderService_GetChannelUploadVideoInfos || {};
+    const vodInfos = response.vodInfos || [];
+    const streamerInfo = response.streamerInfo || {};
+
+    const content = vodInfos.map(vod => {
+        return new PlatformVideo({
+            id: new PlatformID(PLATFORM, vod.vid, plugin.config.id),
+            name: vod.title || "Untitled Video",
+            thumbnails: new Thumbnails([
+                new Thumbnail(vod.coverUrl || streamerInfo.faceUrl)
+            ]),
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, streamerInfo.uid?.toString() || "", plugin.config.id),
+                streamerInfo.nickName || username,
+                `${URL_CHANNEL}/${streamerInfo.userName || username}`,
+                streamerInfo.faceUrl,
+                streamerInfo.followers || 0
+            ),
+            uploadDate: parseInt(vod.publishTs || "0"),
+            duration: parseInt(vod.duration || "0"),
+            viewCount: parseFloat(vod.watchNum || "0"),
+            url: `${URL_CHANNEL}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
+            isLive: false
+        });
+    });
+
+    return {
+        content: content,
+        nextPage: page + 1,
+        hasMore: response.hasMore || false
+    };
+}
 
 function getLiveDetails(url) {
     const match = url.match(REGEX_USER);
@@ -441,19 +754,94 @@ function getLiveDetails(url) {
             streamer.nickName,
             `${URL_CHANNEL}/${streamer.userName}`,
             streamer.faceUrl,
-            // streamerInfo.followers.totalCount
         ),
         uploadDate: live.startTm,
         url: `${URL_CHANNEL}/${streamer.userName}`,
-
-        shareUrl: `${URL_CHANNEL}/${streamer.userName}/${liveInfo.spaceInfo.roomID}`, // ?adtag=user.Username.clip
-
+        shareUrl: `${URL_CHANNEL}/${streamer.userName}/${liveInfo.spaceInfo.roomID}`,
         viewCount: parseFloat(channel.viewers),
 
         isLive: true,
         description: `${live.description}`,
         video: new VideoSourceDescriptor(videoSources),
     })
+}
+
+function getVideoDetails(url) {
+    const match = url.match(REGEX_VOD);
+    if (!match) throw new ScriptException("Invalid VOD URL");
+    const videoId = match[1];
+
+    let op = [{
+        "operationName": "vod_VodReaderService_BatchGetVodDetailInfo",
+        "variables": {
+            "params": {
+                "vids": [videoId],
+            }
+        }
+    }];
+
+    const results = callGQL(op);
+    const vodDetailsInfo = results?.vod_VodReaderService_BatchGetVodDetailInfo?.VodDetailInfos?.[videoId];
+
+    if (!vodDetailsInfo) {
+        throw new UnavailableException('Video not available');
+    }
+
+    const vodInfo = vodDetailsInfo.vodInfo || {};
+    const streamerInfo = vodDetailsInfo.streamerInfo || {};
+
+    if (vodInfo.playbackRights?.playbackRights !== 'Normal') {
+        const setting = vodInfo.playbackRights?.playbackRightsSetting;
+        if (setting === 'SubscriberOnly') {
+            throw new ScriptException('Subscriber-only video');
+        }
+        throw new UnavailableException(`Video unavailable (${setting})`);
+    }
+
+    const videoSources = [];
+    if (vodInfo.playInfos) {
+        vodInfo.playInfos.forEach(playInfo => {
+            videoSources.push(new HLSSource({
+                name: playInfo.desc,
+                duration: parseInt(vodInfo.duration),
+                url: playInfo.playUrl,
+                container: getContainerType(playInfo.playUrl)
+            }));
+        });
+    }
+
+    const clipInfo = vodInfo.clipInfo;
+    const uploadInfo = vodInfo.uploadInfo;
+
+    let description = vodInfo.categoryName || "";
+
+    if (clipInfo && clipInfo.clipperUid && clipInfo.clipperUid !== 0) {
+        description = `${vodInfo.categoryName}\nClipped by ${clipInfo.clipperName}`;
+    }
+    else if (uploadInfo && uploadInfo.uploaderUID && uploadInfo.uploaderUID !== 0) {
+        description = `Uploaded by ${uploadInfo.uploaderNickName}`;
+    }
+
+    return new PlatformVideoDetails({
+        id: new PlatformID(PLATFORM, vodInfo.vid, plugin.config.id),
+        name: vodInfo.title,
+        thumbnails: new Thumbnails([new Thumbnail(vodInfo.coverUrl)]),
+        author: new PlatformAuthorLink(
+            new PlatformID(PLATFORM, streamerInfo.uid.toString(), plugin.config.id),
+            streamerInfo.nickName,
+            `${URL_CHANNEL}/${streamerInfo.userName}`,
+            streamerInfo.faceUrl,
+            streamerInfo.followers || 0
+        ),
+        uploadDate: parseInt(vodInfo.publishTs),
+        url: `${URL_CHANNEL}/${streamerInfo.userName}/${vodInfo.spaceInfo?.roomID}?vid=${vodInfo.vid}`,
+        shareUrl: `${URL_CHANNEL}/${streamerInfo.userName}/${vodInfo.spaceInfo?.roomID}?vid=${vodInfo.vid}`,
+        duration: parseInt(vodInfo.duration),
+        viewCount: parseFloat(vodInfo.watchNum) || 0,
+        description: description,
+        video: new VideoSourceDescriptor(videoSources),
+        rating: new RatingLikes(vodInfo.likeNum),
+    });
 }
 
 //* Internals
@@ -481,7 +869,6 @@ function callGQL(gql, url = GQL, use_authenticated = false, parse = true) {
             Accept: '*/*',
             "Content-Type": "application/json",
             DNT: '1',
-            Host: 'api.trovo.live',
             Origin: 'https://trovo.live',
             Referer: 'https://trovo.live/',
         },
@@ -495,7 +882,12 @@ function callGQL(gql, url = GQL, use_authenticated = false, parse = true) {
     if (!parse) return resp.body;
 
     const json = JSON.parse(resp.body);
-    return json;
+    if (json[0]?.errors) {
+        const errors = json[0].errors.map(e => e.message).join(', ');
+        throw new ScriptException(`GraphQL errors: ${errors}`);
+    }
+
+    return json[0]?.data || {};
 }
 
 function getCodec(codec) {
@@ -515,6 +907,7 @@ function getCodec(codec) {
 function getContainerType(url) {
     if (!url) return "application/octet-stream";
     const patterns = [
+        { regex: /\.mp4/i, type: "video/mp4" },
         { regex: /\.ts(\?|$)/i, type: "video/MP2T" },
         { regex: /\.flv(\?|$)/i, type: "video/x-flv" },
         { regex: /\.m3u8(\?|$)/i, type: "application/x-mpegURL" },

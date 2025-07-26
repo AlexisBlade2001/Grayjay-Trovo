@@ -58,7 +58,7 @@
         "headicon.trovo.live",
         "livecover.trovo.live",
         "liveplay.trovo.live",
-
+        "liveplay2.trovocdn.net",
         "static.trovo.live",
 
         "tdm.trovo.live:8013",
@@ -69,9 +69,42 @@
 
     "authentication": {
         "loginUrl": "https://cdn.trovo.live/page/login-page.html",
-        "headersToFind": ["Authorization", "Cookie"],
-        "cookiesToFind": ["uid", "openid", "pgg_pvid", "token", "tokenInfos", "channel" ],
+        "headersToFind": [
+            "Authorization",
+            "Cookie"
+        ],
+        "cookiesToFind": [
+            "uid",
+            "openid",
+            "pgg_pvid",
+            "token",
+            "tokenInfos",
+            "channel"
+        ]
+    },
+    "settings": [
+        {
+            "variable": "allowMatureTag",
+            "name": "Allow Mature Content",
+            "description": "Allow searching and watching of mature content",
+            "type": "Boolean",
+            "default": "true"
+        },
+        {
+            "variable": "shouldIncludeChannelClips",
+            "name": "Show channel clips",
+            "description": "",
+            "type": "Boolean",
+            "default": "false"
+        }
+    ],
+    "changelog": {
+        "0": [
+            "Initial Release",
+            "Search Support: Suggestions, Contents(Lives) and Channels",
+            "Content Support: Lives(Experimental), Clips, VODs and Uploads",
+            "Channel Support: Channel Details, Lives, VODs, Uploads and Clips(Disabled by default, need to come up with a better way to handle them)",
+            "Issue: Almost everything related to the Follower Count doesn't work, it is not available in the API calls for some reason. The only exception is while Searching."
+        ]
     }
-
-	
 }
