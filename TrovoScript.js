@@ -114,7 +114,7 @@ source.search = function (query, type, order, filters, continuationToken) {
             name: live.programInfo.title,
             thumbnails: new Thumbnails([new Thumbnail(live.programInfo.coverUrl)]),
             author: new PlatformAuthorLink(
-                new PlatformID(PLATFORM, toString(live.userInfo?.uid), plugin.config.id),
+                new PlatformID(PLATFORM, live.userInfo?.uid.toString(), plugin.config.id),
                 live.userInfo.nickName,
                 `${URL_CHANNEL}/${live.userInfo.userName}`,
                 live.userInfo.faceUrl,
@@ -203,7 +203,7 @@ source.searchChannels = function (query, continuationToken) {
         const socialLinks = { ...(channel.userInfo.socialLinks || {}) };
         delete socialLinks.socialLinks;
         return new PlatformChannel({
-            id: new PlatformID(PLATFORM, toString(channel.userInfo?.uid), plugin.config.id),
+            id: new PlatformID(PLATFORM, channel.userInfo?.uid.toString(), plugin.config.id),
             name: channel.userInfo?.nickName,
             thumbnail: channel.userInfo?.faceUrl || "",
             // banner: "",
@@ -386,6 +386,7 @@ function getLiveDetails(url) {
     const results = callGQL(op);
 
     const liveInfo = results.live_LiveReaderService_GetLiveInfo;
+
     if (!liveInfo || !liveInfo.isLive) {
         throw new ScriptException("User is not live");
     }
@@ -431,7 +432,7 @@ function getLiveDetails(url) {
         name: live.title,
         thumbnails: new Thumbnails([new Thumbnail(live.coverUrl)]),
         author: new PlatformAuthorLink(
-            new PlatformID(PLATFORM, toString(streamer.uid), plugin.config.id),
+            new PlatformID(PLATFORM, streamer.uid.toString(), plugin.config.id),
             streamer.nickName,
             `${URL_CHANNEL}/${streamer.userName}`,
             streamer.faceUrl,
