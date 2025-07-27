@@ -5,15 +5,24 @@ const GQL = BASE_GQL;
 const GQL_WEB = BASE_GQL.replace("api", "api-web");
 const GQL_WEB_BACKUP = BASE_BACKUP_GQL.replace("api", "api-web");
 const GQL_OPEN = BASE_GQL.replace("api", "open-api");
+const GQL_FR_WEB = BASE_GQL.replace("api", "fr-api-web");
+const GQL_FR_WEB_BACKUP = BASE_BACKUP_GQL.replace("api", "fr-api-web-backup");
+const GQL_SV_WEB = BASE_GQL.replace("api", "sv-api-web");
+const GQL_SV_WEB_BACKUP = BASE_BACKUP_GQL.replace("api", "sv-api-web-backup");
 
 const URL_BASE = 'https://trovo.live';
 
-const URL_CHANNEL = `${URL_BASE}/s`;
+const URL_CHANNEL_PREFIX = `${URL_BASE}/s`;
+const URL_CHANNEL_SUFFIX_LIVE = `?roomType=1`;
+const URL_CHANNEL_SUFFIX_TEXT = `?roomType=2`;
+const URL_CHANNEL_SUFFIX_DETAILS = `?roomType=3`;
+const URL_CHANNEL_SUFFIX_VIDEOS = `?roomType=4`;
 const URL_SEARCH = `${URL_BASE}/search?q=`;
 const URL_LIVE_CHAT = `${URL_BASE}/chat`
 
-const URL_FOLLOWING = `${URL_BASE}/following`;
-const URL_SUBSCRIPTIONS = `${URL_BASE}/subscriptions`;
+const _URL_FOLLOWING = `${URL_BASE}/following`;
+const URL_FOLLOWING = `${URL_BASE}/subscriptions?tab=following`;
+const URL_SUBSCRIPTIONS = `${URL_BASE}/subscriptions?tab=subscribing`;
 const PLATFORM = "Trovo";
 
 const REGEX_USER = /trovo\.live\/(?:s\/)?([^\/?]+)/i;
@@ -162,13 +171,13 @@ source.search = function (query, type, order, filters, continuationToken) {
             author: new PlatformAuthorLink(
                 new PlatformID(PLATFORM, live.userInfo?.uid.toString(), plugin.config.id),
                 live.userInfo.nickName,
-                `${URL_CHANNEL}/${live.userInfo.userName}`,
+                `${URL_CHANNEL_PREFIX}/${live.userInfo.userName}`,
                 live.userInfo.faceUrl,
                 0
             ),
             uploadDate: parseInt(live.programInfo.startTm),
             viewCount: parseFloat(live.channelInfo.viewers),
-            url: `${URL_CHANNEL}/${live.userInfo.userName}`,
+            url: `${URL_CHANNEL_PREFIX}/${live.userInfo.userName}`,
             isLive: true
         });
     });
@@ -259,10 +268,10 @@ source.searchChannels = function (query, continuationToken) {
             thumbnail: channel.userInfo?.faceUrl || "",
             subscribers: channel.followers ?? 0,
             description: channel.userInfo?.info || "",
-            url: `${URL_CHANNEL}/${channel.userInfo?.userName}`,
+            url: `${URL_CHANNEL_PREFIX}/${channel.userInfo?.userName}`,
             urlAlternatives: [
                 `${URL_BASE}/${channel.userInfo?.userName}`,
-                `${URL_CHANNEL}/${channel.userInfo?.userName}`
+                `${URL_CHANNEL_PREFIX}/${channel.userInfo?.userName}`
             ],
             links: cleanLinks
         });
@@ -319,10 +328,10 @@ source.getChannel = function (url) {
         thumbnail: channel.faceUrl,
         subscribers: channel.followers || 0,
         description: channel.info || "",
-        url: `${URL_CHANNEL}/${channel.userName}`,
+        url: `${URL_CHANNEL_PREFIX}/${channel.userName}`,
         urlAlternatives: [
             `${URL_BASE}/${channel.userName}`,
-            `${URL_CHANNEL}/${channel.userName}`
+            `${URL_CHANNEL_PREFIX}/${channel.userName}`
         ],
         links: cleanLinks
     });
@@ -532,13 +541,13 @@ function getLiveChannelContent(username) {
         author: new PlatformAuthorLink(
             new PlatformID(PLATFORM, liveInfo.streamerInfo.uid.toString(), plugin.config.id),
             liveInfo.streamerInfo.nickName,
-            `${URL_CHANNEL}/${liveInfo.streamerInfo.userName}`,
+            `${URL_CHANNEL_PREFIX}/${liveInfo.streamerInfo.userName}`,
             liveInfo.streamerInfo.faceUrl,
             liveInfo.channelInfo.followers || 0
         ),
         uploadDate: Math.floor(Date.now() / 1000),
         viewCount: parseFloat(liveInfo.channelInfo.viewers),
-        url: `${URL_CHANNEL}/${liveInfo.streamerInfo.userName}`,
+        url: `${URL_CHANNEL_PREFIX}/${liveInfo.streamerInfo.userName}`,
         isLive: true
     });
 }
@@ -572,14 +581,14 @@ function getVodChannelContent(username, page) {
             author: new PlatformAuthorLink(
                 new PlatformID(PLATFORM, streamerInfo.uid?.toString() || "", plugin.config.id),
                 streamerInfo.nickName || username,
-                `${URL_CHANNEL}/${streamerInfo.userName || username}`,
+                `${URL_CHANNEL_PREFIX}/${streamerInfo.userName || username}`,
                 streamerInfo.faceUrl,
                 streamerInfo.followers || 0
             ),
             uploadDate: parseInt(vod.publishTs || "0"),
             duration: parseInt(vod.duration || "0"),
             viewCount: parseFloat(vod.watchNum || "0"),
-            url: `${URL_CHANNEL}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
+            url: `${URL_CHANNEL_PREFIX}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
             isLive: false
         });
     });
@@ -621,14 +630,14 @@ function getClipChannelContent(username, page, filter = null) {
             author: new PlatformAuthorLink(
                 new PlatformID(PLATFORM, streamerInfo.uid?.toString() || "", plugin.config.id),
                 streamerInfo.nickName || username,
-                `${URL_CHANNEL}/${streamerInfo.userName || username}`,
+                `${URL_CHANNEL_PREFIX}/${streamerInfo.userName || username}`,
                 streamerInfo.faceUrl,
                 streamerInfo.followers || 0
             ),
             uploadDate: parseInt(vod.publishTs || "0"),
             duration: parseInt(vod.duration || "0"),
             viewCount: parseFloat(vod.watchNum || "0"),
-            url: `${URL_CHANNEL}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
+            url: `${URL_CHANNEL_PREFIX}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
             isLive: false
         });
     });
@@ -670,14 +679,14 @@ function getUploadChannelContent(username, page) {
             author: new PlatformAuthorLink(
                 new PlatformID(PLATFORM, streamerInfo.uid?.toString() || "", plugin.config.id),
                 streamerInfo.nickName || username,
-                `${URL_CHANNEL}/${streamerInfo.userName || username}`,
+                `${URL_CHANNEL_PREFIX}/${streamerInfo.userName || username}`,
                 streamerInfo.faceUrl,
                 streamerInfo.followers || 0
             ),
             uploadDate: parseInt(vod.publishTs || "0"),
             duration: parseInt(vod.duration || "0"),
             viewCount: parseFloat(vod.watchNum || "0"),
-            url: `${URL_CHANNEL}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
+            url: `${URL_CHANNEL_PREFIX}/${streamerInfo.userName || username}/${vod.spaceInfo?.roomID || ""}?vid=${vod.vid}`,
             isLive: false
         });
     });
@@ -752,12 +761,12 @@ function getLiveDetails(url) {
         author: new PlatformAuthorLink(
             new PlatformID(PLATFORM, streamer.uid.toString(), plugin.config.id),
             streamer.nickName,
-            `${URL_CHANNEL}/${streamer.userName}`,
+            `${URL_CHANNEL_PREFIX}/${streamer.userName}`,
             streamer.faceUrl,
         ),
         uploadDate: live.startTm,
-        url: `${URL_CHANNEL}/${streamer.userName}`,
-        shareUrl: `${URL_CHANNEL}/${streamer.userName}/${liveInfo.spaceInfo.roomID}`,
+        url: `${URL_CHANNEL_PREFIX}/${streamer.userName}`,
+        shareUrl: `${URL_CHANNEL_PREFIX}/${streamer.userName}/${liveInfo.spaceInfo.roomID}`,
         viewCount: parseFloat(channel.viewers),
 
         isLive: true,
@@ -829,13 +838,13 @@ function getVideoDetails(url) {
         author: new PlatformAuthorLink(
             new PlatformID(PLATFORM, streamerInfo.uid.toString(), plugin.config.id),
             streamerInfo.nickName,
-            `${URL_CHANNEL}/${streamerInfo.userName}`,
+            `${URL_CHANNEL_PREFIX}/${streamerInfo.userName}`,
             streamerInfo.faceUrl,
             streamerInfo.followers || 0
         ),
         uploadDate: parseInt(vodInfo.publishTs),
-        url: `${URL_CHANNEL}/${streamerInfo.userName}/${vodInfo.spaceInfo?.roomID}?vid=${vodInfo.vid}`,
-        shareUrl: `${URL_CHANNEL}/${streamerInfo.userName}/${vodInfo.spaceInfo?.roomID}?vid=${vodInfo.vid}`,
+        url: `${URL_CHANNEL_PREFIX}/${streamerInfo.userName}/${vodInfo.spaceInfo?.roomID}?vid=${vodInfo.vid}`,
+        shareUrl: `${URL_CHANNEL_PREFIX}/${streamerInfo.userName}/${vodInfo.spaceInfo?.roomID}?vid=${vodInfo.vid}`,
         duration: parseInt(vodInfo.duration),
         viewCount: parseFloat(vodInfo.watchNum) || 0,
         description: description,
