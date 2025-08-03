@@ -59,10 +59,10 @@ Also... sorry for having A LOT of Allowed URLs, I don't know what urls are being
      - [x] Description
      - [x] Video Sources
        - [x] Quality Options
-     - [ ] Comments
-       - [ ] Subcomments
-         - [ ] SubcommentPager
-       - [ ] CommentPager
+     - [x] Comments
+       - [x] Subcomments
+         - [x] SubcommentPager
+       - [x] CommentPager
      - [x] Ratings
    - [x] Video
      - [x] Title
@@ -74,10 +74,10 @@ Also... sorry for having A LOT of Allowed URLs, I don't know what urls are being
      - [x] View Count
      - [x] Video Sources
        - [x] Quality Options
-     - [ ] Comments
-       - [ ] Subcomments
-         - [ ] SubcommentPager
-       - [ ] CommentPager
+     - [x] Comments
+       - [x] Subcomments
+         - [x] SubcommentPager
+       - [x] CommentPager
      - [x] Ratings
    - [x] Clip
      - [x] Title
@@ -89,11 +89,22 @@ Also... sorry for having A LOT of Allowed URLs, I don't know what urls are being
      - [x] View Count
      - [x] Video Sources
        - [x] Quality Options
-     - [ ] Comments
-       - [ ] Subcomments
-         - [ ] SubcommentPager
-       - [ ] CommentPager
+     - [x] Comments
+       - [x] Subcomments
+         - [x] SubcommentPager
+       - [x] CommentPager
      - [x] Ratings
 
 ## What TO-DO / FIX
-Right now? everything
+Well, this was certainly fast to find things, but we still have missing some things
+- [ ] Implement search filters
+- [ ] Import following list (can it also be Subscriptions?)
+- [ ] Fix Homepage
+- [ ] Fix Authentication
+- [ ] Fix Livestream VideoSources
+- [ ] Fix Followers Count
+
+for Comments (even though those don't seem to be used in any way)
+- [ ] Find a way to get the user's url
+- [ ] Find a way to get the user's follower count
+- [ ] Check if Comments/Subcomments pagers are really working and not a fluke

@@ -432,24 +432,146 @@ source.getComments = function (url, continuationToken) {
      * @returns: CommentPager
      */
 
-    const comments = []; // The results (Comment)
-    const hasMore = false; // Are there more pages?
-    const context = { url: url, continuationToken: continuationToken }; // Relevant data for the next page
-    return new TrovoCommentPager(comments, hasMore, context);
+    const match = url.match(REGEX_VOD);
+    if (!match) throw new ScriptException("Invalid VOD URL");
+    const videoId = match[1];
 
+    const currentPage = continuationToken ? parseInt(continuationToken) : 1;
+
+    const op = [{
+        operationName: "public_CommentProxyService_GetCommentList",
+        variables: {
+            params: {
+                appInfo: {
+                    app: "VIDEO",
+                    postID: videoId
+                },
+                order: "EM_COMMENT_ORDER_TYPE_VIDEO_MAIN",
+                preview: {
+                    order: "EM_COMMENT_ORDER_TYPE_VIDEO_SECONDARY",
+                    pageSize: 0
+                },
+                pageSize: 20,
+                page: currentPage
+            }
+        }
+    }];
+
+    const results = callGQL(op);
+
+    const response = results.public_CommentProxyService_GetCommentList;
+
+    if (!Array.isArray(response?.commentList)) {
+        return new TrovoCommentPager([], false, {});
+    }
+
+    // The results (Comment)
+    const comments = response.commentList.map((comment) =>
+        new PlatformComment({
+            contextUrl: url,
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, comment.author.uid.toString(), plugin.config.id),
+                comment.author.nickName,
+                "",
+                `https://headicon.trovo.live/user/${comment.author.faceUrl}`,
+                0
+            ),
+            message: comment.content,
+            rating: new RatingLikes(comment.likeNum),
+            date: parseInt(comment.createdAt),
+            replyCount: comment.childCommentNum,
+            context: {
+                commentID: comment.commentID,
+                postID: videoId,
+                videoUrl: url
+            },
+        })
+    );
+
+    const hasMore = !response.lastPage; // Are there more pages?
+    const nextToken = hasMore ? currentPage + 1 : null;
+
+    const context = { url: url, continuationToken: nextToken }; // Relevant data for the next page
+
+    return new TrovoCommentPager(comments, hasMore, context);
 }
-source.getSubComments = function (comment) {
+
+source.getSubComments = function (comment, continuationToken) {
     /**
      * @param comment: Comment
-     * @returns: TrovoCommentPager
+     * @returns: TrovoSubCommentPager
      */
 
     if (typeof comment === 'string') {
         comment = JSON.parse(comment);
     }
 
-    return getCommentsPager(comment.context.claimId, comment.context.claimId, 1, false, comment.context.commentId);
-}
+    const commentID = comment.context.commentID;
+    const postID = comment.context.postID;
+    const videoUrl = comment.context.videoUrl;
+
+    const currentPage = continuationToken ? parseInt(continuationToken) : 1;
+
+    const op = [{
+        operationName: "public_CommentProxyService_GetCommentById",
+        variables: {
+            params: {
+                appInfo: {
+                    app: "VIDEO",
+                    postID: postID
+                },
+                commentID: commentID,
+                order: "EM_COMMENT_ORDER_TYPE_VIDEO_SECONDARY",
+                pageSize: 10,
+                page: currentPage
+            }
+        }
+    }];
+
+    const results = callGQL(op);
+    const response = results.public_CommentProxyService_GetCommentById;
+
+    if (!Array.isArray(response?.commentList)) {
+        return new TrovoSubCommentPager([], false, {});
+    }
+
+    // The results (SubComment)
+    const subComments = response.commentList.map(
+        (subComment) => new PlatformComment({
+            contextUrl: videoUrl,
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, subComment.author.uid.toString(), plugin.config.id),
+                subComment.author.nickName,
+                "",
+                `https://headicon.trovo.live/user/${subComment.author.faceUrl}`,
+                0
+            ),
+            message: subComment.content,
+            rating: new RatingLikes(subComment.likeNum),
+            date: parseInt(subComment.createdAt),
+            replyCount: subComment.childCommentNum,
+            context: {
+                commentID: subComment.commentID,
+                postID: postID,
+                videoUrl: videoUrl
+            },
+        })
+    );
+
+    const hasMore = !response.lastPage; // Are there more pages?
+    const nextToken = hasMore ? currentPage + 1 : null;
+
+    const context = {
+        parentContext: {
+            commentID: commentID,
+            postID: postID,
+            videoUrl: videoUrl
+        },
+        continuationToken: nextToken
+    }; // Relevant data for the next page
+
+    return new TrovoSubCommentPager(subComments, hasMore, context);
+};
 
 //Live Chat
 source.getLiveChatWindow = function (url) {
@@ -468,6 +590,16 @@ class TrovoCommentPager extends CommentPager {
 
     nextPage() {
         return source.getComments(this.context.url, this.context.continuationToken);
+    }
+}
+
+class TrovoSubCommentPager extends CommentPager {
+    constructor(results, hasMore, context) {
+        super(results, hasMore, context);
+    }
+
+    nextPage() {
+        return source.getSubComments(this.context.parentComment, this.context.continuationToken);
     }
 }
 
