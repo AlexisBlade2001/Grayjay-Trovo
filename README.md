@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> This plugin will most likely stop working, since Trovo will cease live streaming services after June 30, 2026, as seen [here](https://support.trovo.live/category/8/article/2394)
+
 # Trovo Plugin for Grayjay
 Hi, here I am again with an attempt to add a new source for [Grayjay](https://grayjay.app/), this time is [Trovo](https://trovo.live/)
 So, for context, I learned about this platform after the rebranding of it?(it was a rebranding or was it the purchase from Tencent) when they were in a beta phase, I saw some people try it (people I followed) but it just felt weird somehow, not in the sense of _Booo, this is so broken_ but instead it was something else I can't pinpoint.
